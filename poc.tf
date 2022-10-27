@@ -248,7 +248,8 @@ systemctl start httpd
 systemctl enable httpd
 chkconfig httpd on
 EC2_AVAIL_ZONE=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
-echo "<h1>Hello VF-Cloud World – running on $(hostname -f) in AZ $EC2_AVAIL_ZONE on port 80 </h1>" > /var/www/html/index.html
+echo "<h1>Hello VF-Cloud World – running on $(hostname -f) in AZ $EC2_AVAIL_ZONE on port 80 </h1>" > /test/index.html
+ln -s /test/index.html /var/www/html/index.html
 pvcreate /dev/sdb
 vgcreate test_vg /dev/sdb
 lvcreate -n test_lv -L 750M test_vg
@@ -284,7 +285,8 @@ systemctl start httpd
 systemctl enable httpd
 chkconfig httpd on
 EC2_AVAIL_ZONE=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
-echo "<h1>Hello VF-Cloud World – running on $(hostname -f) in AZ $EC2_AVAIL_ZONE on port 80 </h1>" > /var/www/html/index.html
+echo "<h1>Hello VF-Cloud World – running on $(hostname -f) in AZ $EC2_AVAIL_ZONE on port 80 </h1>" > /test/index.html
+ln -s /test/index.html /var/www/html/index.html
 pvcreate /dev/sdb
 vgcreate test_vg /dev/sdb
 lvcreate -n test_lv -L 750M test_vg
@@ -305,6 +307,22 @@ resource "aws_instance" "test2_ec2" {
   instance_type = "t2.micro"
   security_groups = [aws_security_group.test_sg.id]
   key_name = "su"
+  provisioner "file" {
+    source      = "su.pem"
+    destination = "/home/ec2-user/.ssh/id_rsa"
+
+
+    connection {
+      type        = "ssh"
+      user        = "ec2-user"
+      private_key = file("${path.module}/su.pem")
+      host        = aws_instance.test2_ec2.public_ip
+    }
+  }
+      user_data = <<EOF
+#!/bin/bash
+chmod 600 /home/ec2-user/.ssh/id_rsa
+EOF
 
   tags = {
     Name = "test2-ec2"
@@ -320,7 +338,7 @@ resource "aws_lb_target_group" "test-target-group" {
     path                = "/"
     protocol            = "HTTP"
     timeout             = 5
-    healthy_threshold   = 4
+    healthy_threshold   = 2
     unhealthy_threshold = 2
   }
 
@@ -372,5 +390,3 @@ resource "aws_lb_listener" "test-alb-listner" {
     target_group_arn = "${aws_lb_target_group.test-target-group.arn}"
   }
 }
-
-
